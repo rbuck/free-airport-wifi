@@ -1,0 +1,107 @@
+#!/bin/bash
+
+set -e
+
+ME=`basename $0`
+
+os_type=`uname -s`
+case $os_type in
+    Darwin*)
+        : ${interface:="awdl0"}
+    ;;
+    Linux*)
+        : ${interface:="eth0"}
+    ;;
+esac
+mac_addr=`openssl rand -hex 6 | sed 's/\(..\)/\1:/g; s/./0/2; s/.$//'`
+
+function check_root()
+{
+    if [[ $(/usr/bin/id -u) -ne 0 ]]; then
+        echo "Not running as root"
+        exit
+    fi
+}
+
+function assign()
+{
+    check_root
+    os_type=`uname -s`
+    case $os_type in
+        Darwin*)
+            /System/Library/PrivateFrameworks/Apple80211.framework/Versions/A/Resources/airport -z
+            ifconfig $interface ether $mac_addr
+        ;;
+        Linux*)
+            /etc/init.d/networking stop
+            ifconfig $interface hw ether $mac_addr
+            /etc/init.d/networking start
+        ;;
+    esac
+    echo -e "Network interface $interface assigned a new MAC address: $mac_addr"
+}
+
+function show()
+{
+    ifconfig $interface
+}
+
+function help()
+{
+  cat <<- __EOF__
+
+  DESCRIPTION
+
+  Most airports offer free WiFi, yet some of those time limit access, after which
+  you are prompted to provide credit card information for additional minutes. The
+  scheme works off the MAC of your WiFi network interface. By simply changing the
+  WiFi interface MAC address you can reconnect to airport WiFi and get additional
+  minutes free.
+
+  The script provided assigns a new randomly generated MAC address to the network
+  interface of your WiFi network interface. After running the script you are free
+  to reconnect to airport WiFi for additional free minutes. Simply repeat running
+  the script each time you get kicked out.
+
+  SHOW ACTIVE NETWORK INTERFACES
+
+  To start a transaction engine simply run the following command:
+
+    ${ME} show
+
+  ASSIGN A RANDOMLY GENERATED MAC ADDRESS
+
+  To assign a new randomly generated MAC address to the specified network interface:
+
+    ${ME} assign
+
+  OTHER
+
+  All functions of this script print out the elapsed time to run as the last
+  output.
+
+__EOF__
+}
+
+if [ $# -eq 0 ]; then
+    echo -e "\nSyntax:\n\t${ME} [<command> ...]\n\
+\nCommands include:\
+\n\t help        displays extended help and explanations\
+\n\t assign      assign a new randomly generated mac address\
+\n\t show        show active network interfaces
+\n"
+else
+    echo -e ""
+fi
+
+while [ $# -gt 0 ]
+do
+    CMD=$1
+    time {
+      ${CMD}
+      shift
+    }
+    echo ""
+done
+
+exit
